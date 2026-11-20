@@ -138,14 +138,53 @@ export class PractitionerController {
    * @param req Express request with Practitioner resource in body
    * @param res Express response
    */
-  async createPractitioner(_req: Request, res: Response): Promise<void> {
-    res.status(501)
-      .setHeader('Content-Type', 'application/fhir+json;charset=UTF-8')
-      .json(this.createOperationOutcome(
-        'error',
-        'not-supported',
-        'Not Implemented - Student Exercise 3: Implement POST /Practitioner'
-      ));
+  async createPractitioner(req: Request, res: Response): Promise<void> {
+    try {
+      const fhirPractitioner = req.body;
+
+      // FHIR spec: "the server SHALL ignore it" - Remove ID if provided
+      delete fhirPractitioner.id;
+
+      // Import practitioner service dynamically to avoid circular dependencies
+      const { practitionerService } = await import('../services/practitioner.service');
+
+      // Create practitioner in legacy system
+      const created = await practitionerService.createPractitioner(fhirPractitioner);
+
+      // Build Location header: [base]/[type]/[id]
+      // Note: We don't include /_history/[vid] because the legacy API doesn't support versioning
+      const locationUrl = `/baseR4/Practitioner/${created.id}`;
+
+      // Check Prefer header for return preference
+      const preferHeader = req.get('Prefer');
+      const returnMinimal = preferHeader === 'return=minimal';
+
+      if (returnMinimal) {
+        // Return 201 with Location header but no body
+        res.status(201)
+          .setHeader('Location', locationUrl)
+          .setHeader('Content-Type', 'application/fhir+json')
+          .send();
+      } else {
+        // Return 201 with Location header and full resource (default: return=representation)
+        res.status(201)
+          .setHeader('Location', locationUrl)
+          .setHeader('Content-Type', 'application/fhir+json;charset=UTF-8')
+          .json(created);
+      }
+    } catch (error: any) {
+      // Check if it's a parsing error (400 Bad Request)
+      if (error.message?.includes('parse') || error.message?.includes('invalid')) {
+        res.status(400)
+          .setHeader('Content-Type', 'application/fhir+json;charset=UTF-8')
+          .json(this.createOperationOutcome('error', 'invalid', `Resource could not be parsed: ${error.message}`));
+      } else {
+        // 500 Internal Server Error
+        res.status(500)
+          .setHeader('Content-Type', 'application/fhir+json;charset=UTF-8')
+          .json(this.createOperationOutcome('error', 'exception', `Internal server error: ${error.message}`));
+      }
+    }
   }
 
   /**

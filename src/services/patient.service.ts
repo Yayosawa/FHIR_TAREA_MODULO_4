@@ -37,9 +37,10 @@ export class PatientService {
    * 3. Transform list to FHIR Bundle using patientMapper.toBundle()
    * 4. Return the Bundle
    */
-  async searchPatients(family?: string): Promise<Bundle> {
-    // TODO: Implement this method (EXERCISE 1)
-    throw new Error('Not Implemented - Student Exercise 1: Implement searchPatients()');
+  async searchPatients(_family?: string): Promise<Bundle> {
+    let doctors = await legacyApiClient.getPatients();
+
+    return patientMapper.toBundle(doctors);
   }
 
   /**
@@ -54,8 +55,13 @@ export class PatientService {
    * 4. Return the FHIR Patient
    */
   async getPatientById(id: string): Promise<Patient | null> {
-    // TODO: Implement this method (EXERCISE 1)
-    throw new Error('Not Implemented - Student Exercise 2: Implement getPatientById()');
+    const patient = await legacyApiClient.getPatient(id);
+
+    if (!patient) {
+      return null;
+    }
+
+    return patientMapper.toFhir(patient);
   }
 
   /**

@@ -69,8 +69,16 @@ export class PractitionerService {
    * 4. Return created FHIR Practitioner
    */
   async createPractitioner(fhirPractitioner: Practitioner): Promise<Practitioner> {
-    // TODO: Implement this method (EXERCISE 3)
-    throw new Error('Not Implemented - Student Exercise 3: Implement createPractitioner()');
+    // 1. Transform FHIR Practitioner to legacy format
+    const legacyData = practitionerMapper.toLegacy(fhirPractitioner);
+
+    // 2. Create in legacy API
+    const createdLegacyPractitioner = await legacyApiClient.createDoctor(legacyData);
+
+    // 3. Transform back to FHIR
+    const createdFhirPatient = practitionerMapper.toFhir(createdLegacyPractitioner);
+
+    return createdFhirPatient;
   }
 
   /**

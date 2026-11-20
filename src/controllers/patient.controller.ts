@@ -100,13 +100,35 @@ export class PatientController {
    * @param res Express response
    */
   async searchPatients(req: Request, res: Response): Promise<void> {
-    res.status(501)
-      .setHeader('Content-Type', 'application/fhir+json;charset=UTF-8')
-      .json(this.createOperationOutcome(
-        'error',
-        'not-supported',
-        'Not Implemented - Student Exercise 1: Implement GET /Patient'
-      ));
+    try {
+      // Validate format parameter (only JSON supported for now)
+      const format = req.query._format as string | undefined;
+      if (format && !this.isJsonFormat(format)) {
+        res.status(406)
+          .setHeader('Content-Type', 'application/fhir+json;charset=UTF-8')
+          .json(this.createOperationOutcome(
+            'error',
+            'not-supported',
+            `Only JSON format is supported. Requested format: ${format}`
+          ));
+        return;
+      }
+
+      // Import patient service dynamically
+      const { patientService } = await import('../services/patient.service');
+
+      // Search patient with optional identifier filter
+      const identifier = req.query.identifier as string | undefined;
+      const bundle = await patientService.searchPatients(identifier);
+
+      res.status(200)
+        .setHeader('Content-Type', 'application/fhir+json;charset=UTF-8')
+        .json(bundle);
+    } catch (error: any) {
+      res.status(500)
+        .setHeader('Content-Type', 'application/fhir+json;charset=UTF-8')
+        .json(this.createOperationOutcome('error', 'exception', `Internal server error: ${error.message}`));
+    }
   }
 
   /**
@@ -129,13 +151,42 @@ export class PatientController {
    * @param res Express response
    */
   async getPatient(req: Request, res: Response): Promise<void> {
-    res.status(501)
-      .setHeader('Content-Type', 'application/fhir+json;charset=UTF-8')
-      .json(this.createOperationOutcome(
-        'error',
-        'not-supported',
-        'Not Implemented - Student Exercise 2: Implement GET /Patient/{id}'
-      ));
+    try {
+      // Validate format parameter (only JSON supported for now)
+      const format = req.query._format as string | undefined;
+      if (format && !this.isJsonFormat(format)) {
+        res.status(406)
+          .setHeader('Content-Type', 'application/fhir+json;charset=UTF-8')
+          .json(this.createOperationOutcome(
+            'error',
+            'not-supported',
+            `Only JSON format is supported. Requested format: ${format}`
+          ));
+        return;
+      }
+
+      // Import patient service dynamically
+      const { patientService } = await import('../services/patient.service');
+
+      // Get patient by ID
+      const id = req.params.id;
+      const patient = await patientService.getPatientById(id);
+
+      if (!patient) {
+        res.status(404)
+          .setHeader('Content-Type', 'application/fhir+json;charset=UTF-8')
+          .json(this.createOperationOutcome('error', 'not-found', `Patient with ID ${id} not found`));
+        return;
+      }
+
+      res.status(200)
+        .setHeader('Content-Type', 'application/fhir+json;charset=UTF-8')
+        .json(patient);
+    } catch (error: any) {
+      res.status(500)
+        .setHeader('Content-Type', 'application/fhir+json;charset=UTF-8')
+        .json(this.createOperationOutcome('error', 'exception', `Internal server error: ${error.message}`));
+    }
   }
 
   /**
