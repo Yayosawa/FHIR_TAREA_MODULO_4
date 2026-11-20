@@ -1,0 +1,85 @@
+services:
+  # PostgreSQL Database - Chilean Medical Appointments System
+  postgres:
+    image: postgres:16-alpine
+    container_name: cens-fhir-postgres-ts
+    environment:
+      POSTGRES_DB: citasdb
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: admin123
+    ports:
+      - "5432:5432"
+    volumes:
+      # Initialize database with schema and seed data
+      - ../legacy/db/init.sql:/docker-entrypoint-initdb.d/01-init.sql
+      - ../legacy/db/seed.sql:/docker-entrypoint-initdb.d/02-seed.sql
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U admin -d citasdb"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - fhir-network
+
+  # Legacy REST API - Python FastAPI
+  legacy-api:
+    build:
+      context: ../legacy
+      dockerfile: Dockerfile
+    container_name: cens-fhir-legacy-api-ts
+    environment:
+      # Variables que database.py espera
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: admin123
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: citasdb
+      # DATABASE_URL por compatibilidad (si en el futuro se usa directamente)
+      DATABASE_URL: postgresql://admin:admin123@postgres:5432/citasdb
+      PORT: 8000
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/docs')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - fhir-network
+
+  # FHIR Facade API - TypeScript/Express
+  fhir-facade-ts:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: cens-fhir-facade-ts
+    environment:
+      PORT: 3000
+      LEGACY_API_URL: http://legacy-api:8000
+      NODE_ENV: production
+    ports:
+      - "3000:3000"
+    depends_on:
+      legacy-api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/baseR4/metadata"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 40s
+    networks:
+      - fhir-network
+
+volumes:
+  postgres_data:
+    driver: local
+
+networks:
+  fhir-network:
+    driver: bridge
