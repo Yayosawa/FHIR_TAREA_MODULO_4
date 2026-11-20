@@ -134,7 +134,7 @@ export class PatientController {
       .json(this.createOperationOutcome(
         'error',
         'not-supported',
-        'Not Implemented - Student Exercise 2: Implement GET /Patient/{id} exxxx'
+        'Not Implemented - Student Exercise 2: Implement GET /Patient/{id}'
       ));
   }
 
